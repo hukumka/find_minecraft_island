@@ -162,8 +162,8 @@ int main(int argc, char *argv[]) {
     // this checks for two params which will be used as first and last seeds
     // and converts them into numbers
     if (argc != 3){
-        printf("Check given params");
-	    exit(1);
+        printf("Check given params (Usage: find_island.exe FROM_SEED TO_SEED).");
+	exit(1);
     }
     int64_t seed_start = atoi(argv[1]);
     int64_t seed_end = atoi(argv[2]);	
