@@ -158,7 +158,17 @@ int process_island(const struct Map* map) {
     return 1;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+    // this checks for two params which will be used as first and last seeds
+    // and converts them into numbers
+    if (argc != 3){
+        printf("Check given params (Usage: find_island.exe FROM_SEED TO_SEED).");
+	exit(1);
+    }
+    int64_t seed_start = atoi(argv[1]);
+    int64_t seed_end = atoi(argv[2]);	
+    printf("Seed range is from %d to %d\n", seed_start, seed_end);
+    
     // Initialize generator
     initBiomes();
     LayerStack g;
@@ -172,10 +182,6 @@ int main() {
     int centerZ = 0;
 
     int* buffer = allocCache(layer, width, height);
-
-    // Set search range
-    int64_t seed_start = 1000;
-    int64_t seed_end = 10000;
 
     // Run my shit
     for (int64_t seed=seed_start; seed<=seed_end; ++seed) {
