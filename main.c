@@ -1,4 +1,5 @@
 #include "finder.h"
+#include "filters.h"
 #include <stdio.h>
 
 int process_island(const struct Map* map) {
@@ -18,7 +19,8 @@ int process_island(const struct Map* map) {
     if (w*16 < 1000 || h*16 < 1000) {
         return -1;
     }
-    printf("%d:%d, %d:%d, %d:%d, circumvent=%d, turns=%d\n", w, h, res.minX - 128, res.maxX - 128, res.minZ - 128, res.maxZ - 128, res.length, res.turns);
+    double value = count_biomes(map);
+    printf("%d:%d, %d:%d, %d:%d, circumvent=%d, biome_value=%lf\n", w, h, res.minX - 128, res.maxX - 128, res.minZ - 128, res.maxZ - 128, res.length, value);
     return 1;
 }
 
