@@ -1,17 +1,22 @@
 #include "filters.h"
 #include <math.h>
 
-int count_biomes(const struct Map* map) {
+int count_biomes(const struct Map* map, const struct ClockwiseTraversal* island) {
     int value = 0.0;
     int biome_count[128] = {0};
-    for (int i = 0; i < map->width * map->height; ++i) {
-        int biome = map->map[i];
-        // Reduce variant biome to main biome.
-        if (biome > 128) {
-            biome -= 128;
-        }
-        if (biomes >= 0 && biome < 128) {
-            biome_count[biome] += 1;
+    for (int z = island->minZ; z < island->maxZ; ++z) {
+        for (int x = island->minX; x < island->maxX; ++x) {
+            if (map_partition(map, x, z) != PartitionIsland) {
+                continue;
+            }
+            int biome = map->map[x + z * map->width];
+            // Reduce variant biome to main biome.
+            if (biome > 128) {
+                biome -= 128;
+            }
+            if (biomes >= 0 && biome < 128) {
+                biome_count[biome] += 1;
+            }
         }
     }
     if (biome_count[plains] >= 40) {
@@ -47,10 +52,10 @@ void check_for_shore(const struct Map* map, int x, int z, int dx, int dz, void* 
             broken = 1;
         }
     }
-    int shore_check = consecutive > 12 // Nearest land pretty far
-        || total > consecutive; // There is water shortly after land, so it is just mini island.
+    int shore_check = consecutive > 16 // Nearest land pretty far
+        || total >= 16; // There is water shortly after land, so it is just mini island.
     if (!shore_check) {
-        *value += expf((12.0 / (double) consecutive) - 1.0) - 1.0;
+        *value += expf((16.0 / (double) consecutive) - 1.0) - 1.0;
     }
 }
 

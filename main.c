@@ -65,9 +65,12 @@ int process_island(struct Map* map) {
         return -1;
     }
     fill_partition(map, shore.x - 1, shore.z);
-    int biome_value = count_biomes(map);
+    int biome_value = count_biomes(map, &res);
     double shore_value = count_shore_width(map, shore.x, shore.z, 10000);
     int area = island_area(map, &res);
+    if (shore_value > 3) {
+        return -1;
+    }
     printf(
         "%d:%d, %d:%d, %d:%d, circumvent=%d, biome_value=%d, shore_value=%lf, area=%d\n", 
         w, h, res.minX - 128, res.maxX - 128, res.minZ - 128, res.maxZ - 128, res.length, 
