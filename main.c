@@ -47,53 +47,88 @@ void fill_partition(struct Map* map, int x, int z) {
     }
 }
 
-int process_island(struct Map* map) {
+struct ProcessingResult {
+    struct ClockwiseTraversal island;
+    int width;
+    int height;
+    int biome_value;
+    int area;
+    double shore_value;
+    int map_biome_value;
+    int discard;
+};
+
+struct ProcessingResult process_island(struct Map* map) {
+    struct ProcessingResult result;
+    result.discard = 1;
     struct PosRes shore = find_shore(map);
     if(shore.not_found) {
-        return -1;
+        return result;
     }
-    struct ClockwiseTraversal res = traverse_clockwise(map, shore.x, shore.z, 10000);
-    if(res.broken) {
-        return -1;
+    result.island = traverse_clockwise(map, shore.x, shore.z, 10000);
+    if(result.island.broken) {
+        return result;
     }
-    if(res.turns != 4) {
-        return -1;
+    if(result.island.turns != 4) {
+        return result;
     }
-    int w = res.maxX - res.minX;
-    int h = res.maxZ - res.minZ;
+    int w = result.width = result.island.maxX - result.island.minX;
+    int h = result.height = result.island.maxZ - result.island.minZ;
     if (w*16 < 1000 || h*16 < 1000) {
-        return -1;
+        return result;
     }
     fill_partition(map, shore.x - 1, shore.z);
-    int biome_value = count_biomes(map, &res);
-    if (biome_value < 25) {
-        return -1;
+    result.biome_value = count_biomes(map, &result.island);
+    if (result.biome_value < 25) {
+        return result;
     }
-    double shore_value = count_shore_width(map, shore.x, shore.z, 10000);
-    if (shore_value > 3) {
-        return -1;
+    result.shore_value = count_shore_width(map, shore.x, shore.z, 10000);
+    if (result.shore_value > 3) {
+        return result;
     }
-    int area = island_area(map, &res);
-    if (area < 2000) {
-        return -1;
+    result.area = island_area(map, &result.island);
+    if (result.area < 2000) {
+        return result;
     }
-    printf(
-        "%d:%d, %d:%d, %d:%d, circumvent=%d, biome_value=%d, shore_value=%lf, area=%d\n", 
-        w, h, res.minX - 128, res.maxX - 128, res.minZ - 128, res.maxZ - 128, res.length, 
-        biome_value, shore_value, area 
+    result.map_biome_value = count_map_biomes(map);
+    result.discard = 0;
+    return result;
+}
+
+void make_header(const char* path) {
+    FILE* file = fopen(path, "w");
+    fprintf(file, "seed, width, height, x, X, z, Z, circumvent, biome_value, area, shore_value, map_biome_value\n");
+    fclose(file);
+}
+
+void save_to_file(const char* path, int64_t seed, struct ProcessingResult* result) {
+    printf("%ld", seed);
+    FILE* file = fopen(path, "a");
+    // seed, width, height, x, X, z, Z, lenght, biome_value, area, shore_value, map_biome_value
+    fprintf(file, "%ld, %d, %d, %d, %d, %d, %d, %d, %d, %d, %lf, %d\n",
+        seed,
+        result->width, result->height,
+        result->island.minX, result->island.maxX,
+        result->island.minZ, result->island.maxZ,
+        result->island.length,
+        result->biome_value,
+        result->area,
+        result->shore_value,
+        result->map_biome_value
     );
-    return 1;
+    fclose(file);
 }
 
 int main(int argc, char *argv[]) {
     // this checks for two params which will be used as first and last seeds
     // and converts them into numbers
-    if (argc != 3){
-        printf("Check given params (Usage: find_island.exe FROM_SEED TO_SEED).");
-	exit(1);
+    if (argc != 4){
+        printf("Check given params (Usage: find_island.exe FROM_SEED TO_SEED OUTFILE).");
+	    return 1;
     }
     int64_t seed_start = atol(argv[1]);
     int64_t seed_end = atol(argv[2]);	
+    const char* path = argv[3];
     printf("Seed range is from %ld to %ld\n", seed_start, seed_end);
     
     // Initialize generator
@@ -111,15 +146,16 @@ int main(int argc, char *argv[]) {
     int* buffer = allocCache(layer, width, height);
     int* buffer2 = allocCache(layer, width, height);
 
+    make_header(path);
     // Run my shit
     for (int64_t seed=seed_start; seed<=seed_end; ++seed) {
         setWorldSeed(layer, seed);
         genArea(layer, buffer, centerX - width/2, centerZ - height/2, width, height);
 
         struct Map map = {width, height, buffer, buffer2};
-        int value = process_island(&map);
-        if (value > 0) {
-            printf("seed=%lld value=%d\n", seed, value);
+        struct ProcessingResult result = process_island(&map);
+        if (!result.discard) {
+            save_to_file(path, seed, &result);
         }
     }
     free(buffer);

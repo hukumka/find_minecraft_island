@@ -2,7 +2,7 @@
 #include <math.h>
 
 int count_biomes(const struct Map* map, const struct ClockwiseTraversal* island) {
-    int value = 0.0;
+    int value = 0;
     int biome_count[128] = {0};
     for (int z = island->minZ; z < island->maxZ; ++z) {
         for (int x = island->minX; x < island->maxX; ++x) {
@@ -32,6 +32,41 @@ int count_biomes(const struct Map* map, const struct ClockwiseTraversal* island)
         if (biome_count[i] > 0) {
             value += 1.0;
         }
+    }
+    return value;
+}
+
+int count_map_biomes(const struct Map* map) {
+    int biome_count[256] = {0};
+    for (int i=0; i < map->width*map->height; ++i) {
+        if (map->map[i] >= 0 && map->map[i] < 256) {
+            biome_count[map->map[i]] += 1;
+        }
+    }
+    int value = 0;
+    if (biome_count[jungle]) {
+        value += 1;
+    }
+    if (biome_count[swamp]) {
+        value += 1;
+    }
+    if (biome_count[desert]) {
+        value += 1;
+    }
+    if (biome_count[savanna] || biome_count[savanna_plateau]) {
+        value += 1;
+    }
+    if (biome_count[lukewarm_ocean]) {
+        value += 1;
+    }
+    if (biome_count[taiga] || biome_count[taiga_hills]) {
+        value += 1;
+    }
+    if (biome_count[mushroom_fields]) {
+        value += 1;
+    }
+    if (biome_count[mesa]) {
+        value += 1;
     }
     return value;
 }
