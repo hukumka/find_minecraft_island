@@ -92,9 +92,9 @@ int main(int argc, char *argv[]) {
         printf("Check given params (Usage: find_island.exe FROM_SEED TO_SEED).");
 	exit(1);
     }
-    int64_t seed_start = atoi(argv[1]);
-    int64_t seed_end = atoi(argv[2]);	
-    printf("Seed range is from %d to %d\n", seed_start, seed_end);
+    int64_t seed_start = atol(argv[1]);
+    int64_t seed_end = atol(argv[2]);	
+    printf("Seed range is from %ld to %ld\n", seed_start, seed_end);
     
     // Initialize generator
     initBiomes();
