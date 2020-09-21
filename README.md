@@ -40,5 +40,5 @@ make all
 
 Run the result:
 ```
-./find_island
+./find_island 0 10000
 ```
