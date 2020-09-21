@@ -1,6 +1,12 @@
 #include "finder.h"
 
+void do_nothing(const struct Map* map, int x, int y, int dx, int dy, void* extra) {}
+
 struct ClockwiseTraversal traverse_clockwise(const struct Map* map, int startX, int startZ, int maxLength) {
+    return traverse_clockwise_do(map, startX, startZ, maxLength, (void*)0, do_nothing);
+}
+
+struct ClockwiseTraversal traverse_clockwise_do(const struct Map* map, int startX, int startZ, int maxLength, void* extra, TraversalCallback callback) {
     struct ClockwiseTraversal result;
     result.minX = result.maxX = startX;
     result.minZ = result.maxZ = startZ;
@@ -40,6 +46,9 @@ struct ClockwiseTraversal traverse_clockwise(const struct Map* map, int startX, 
         }
         x += dx;
         z += dz;
+
+        callback(map, x, z, dx, dz, extra);
+
         result.maxX = MAX(x, result.maxX);
         result.minX = MIN(x, result.minX);
         result.maxZ = MAX(z, result.maxZ);

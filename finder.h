@@ -6,11 +6,20 @@
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
+enum SpacePart {
+    PartitionLand = 0,
+    PartitionIsland = 1,
+    PartitionOcean = 2,
+};
+
 struct Map {
     int width;
     int height;
     int* map;
+    int* spacePartition;
 };
+
+typedef void (*TraversalCallback)(const struct Map*, int x, int z, int dx, int dz, void* extra);
 
 struct ClockwiseTraversal {
     int minX;
@@ -52,7 +61,15 @@ static inline int map_is_ocean(const struct Map* map, int x, int z) {
     return is_ocean(biome);
 }
 
+static inline int map_partition(const struct Map* map, int x, int z) {
+    if (x < 0 || x >= map->width || z < 0 || z >= map->height) {
+        return -1;
+    }
+    return map->spacePartition[x + map->width * z];
+}
+
 struct ClockwiseTraversal traverse_clockwise(const struct Map* map, int startX, int startZ, int maxLength);
+struct ClockwiseTraversal traverse_clockwise_do(const struct Map* map, int startX, int startZ, int maxLength, void* extra, TraversalCallback callback);
 struct PosRes find_shore(const struct Map* map);
 
 #endif
