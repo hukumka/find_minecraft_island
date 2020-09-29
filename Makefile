@@ -1,6 +1,6 @@
 CC = gcc
 FLAGS = -g -O0 -lm -I. -L.
-OBJS = main.o finder.o filters.o
+OBJS = main.o finder.o filters.o ocl_generator.o
 OCL_OBJS = ocl_tests.o ocl_generator.o cubiomes/libcubiomes.a
 override CFLAGS += $(FLAGS)
 
@@ -15,9 +15,9 @@ ocl_tests.o: ocl_generator.h
 ocl_generator.o: ocl_generator.h
 
 all: cubiomes/libcubiomes.a $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) ./cubiomes/libcubiomes.a -o find_island
+	$(CC) $(CFLAGS) $(OBJS) ./cubiomes/libcubiomes.a -lOpenCL -o find_island
 
-main.o: finder.h filters.h
+main.o: finder.h filters.h ocl_generator.h
 finder.o: finder.h
 filters.o: finder.h filters.h
 
