@@ -3,7 +3,7 @@
 #include "cubiomes/finders.h"
 #include <stdio.h>
 #include <string.h>
-
+#include "ocl_generator.h"
 
 struct Stack_Pos {
     Pos* stack;
@@ -120,6 +120,9 @@ void save_to_file(const char* path, int64_t seed, struct ProcessingResult* resul
 }
 
 int main(int argc, char *argv[]) {
+    struct GeneratorContext context;
+    init_generator_context(&context, MC_1_16, 256, 256);
+
     // this checks for two params which will be used as first and last seeds
     // and converts them into numbers
     if (argc != 4){
@@ -143,14 +146,23 @@ int main(int argc, char *argv[]) {
     int centerX = 0;
     int centerZ = 0;
 
-    int* buffer = allocCache(layer, width, height);
-    int* buffer2 = allocCache(layer, width, height);
+    cl_int4 dims = {{centerX - width/2, centerZ - height/2, width, height}};
+
+    //int* buffer = allocCache(layer, width, height);
+    //int* buffer2 = allocCache(layer, width, height);
+    cl_int* buffer = (cl_int*) malloc(width*height*sizeof(cl_int));
+    cl_int* buffer2 = (cl_int*) malloc(width*height*sizeof(cl_int));
 
     make_header(path);
     // Run my shit
     for (int64_t seed=seed_start; seed<=seed_end; ++seed) {
-        setWorldSeed(layer, seed);
-        genArea(layer, buffer, centerX - width/2, centerZ - height/2, width, height);
+        cl_event e0;
+        cl_event e1;
+        //setWorldSeed(layer, seed);
+        set_world_seed(&context, seed, &e0);
+        generate_layer(&context, L_SHORE_16, dims, buffer, &e0, &e1);
+        clWaitForEvents(1, &e1);
+        //genArea(layer, buffer, centerX - width/2, centerZ - height/2, width, height);
 
         struct Map map = {width, height, buffer, buffer2};
         struct ProcessingResult result = process_island(&map);
