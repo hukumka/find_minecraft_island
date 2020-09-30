@@ -1,6 +1,71 @@
 typedef long int64_t;
 typedef unsigned long uint64_t;
 
+enum {
+    L_ISLAND_4096 = 0,
+    L_ZOOM_2048,
+    L_ADD_ISLAND_2048,
+    L_ZOOM_1024,
+    L_ADD_ISLAND_1024A,
+    L_ADD_ISLAND_1024B,
+    L_ADD_ISLAND_1024C,
+    L_REMOVE_OCEAN_1024,
+    L_ADD_SNOW_1024,
+    L_ADD_ISLAND_1024D,
+    L_COOL_WARM_1024,
+    L_HEAT_ICE_1024,
+    L_SPECIAL_1024,  /* Good entry for: temperature categories */
+    L_ZOOM_512,
+    L_ZOOM_256,
+    L_ADD_ISLAND_256,
+    L_ADD_MUSHROOM_256, /* Good entry for: mushroom biomes */
+    L_DEEP_OCEAN_256,
+    L_BIOME_256, /* Good entry for: major biome types */
+    L_ZOOM_128,
+    L_ZOOM_64,
+    L_BIOME_EDGE_64,
+    L_RIVER_INIT_256,
+    L_ZOOM_128_HILLS,
+    L_ZOOM_64_HILLS,
+    L_HILLS_64, /* Good entry for: minor biome types */
+    L_RARE_BIOME_64,
+    L_ZOOM_32,
+    L_ADD_ISLAND_32,
+    L_ZOOM_16,
+    L_SHORE_16,
+    L_ZOOM_8,
+    L_ZOOM_4,
+    L_SMOOTH_4,
+    L_ZOOM_128_RIVER,
+    L_ZOOM_64_RIVER,
+    L_ZOOM_32_RIVER,
+    L_ZOOM_16_RIVER,
+    L_ZOOM_8_RIVER,
+    L_ZOOM_4_RIVER,
+    L_RIVER_4,
+    L_SMOOTH_4_RIVER,
+    L_RIVER_MIX_4,
+    L_VORONOI_ZOOM_1,
+
+    // 1.13 layers
+    L13_OCEAN_TEMP_256,
+    L13_ZOOM_128,
+    L13_ZOOM_64,
+    L13_ZOOM_32,
+    L13_ZOOM_16,
+    L13_ZOOM_8,
+    L13_ZOOM_4,
+    L13_OCEAN_MIX_4,
+
+    // 1.14 layers
+    L14_BAMBOO_256,
+
+    // largeBiomes layers
+    L_ZOOM_LARGE_BIOME_A,
+    L_ZOOM_LARGE_BIOME_B,
+
+    L_NUM
+};
 
 struct Biome {
     int id;
@@ -219,14 +284,75 @@ static inline int isOceanic(int id)
     return id < 64 && ((1ULL << id) & ocean_bits);
 }
 
+static inline int64_t getLayerSeed(int64_t salt)
+{
+    int64_t ls = mcStepSeed(salt, salt);
+    ls = mcStepSeed(ls, salt);
+    ls = mcStepSeed(ls, salt);
+    return ls;
+}
+
+void set_layer_seed(__global struct Layer* layer, int64_t salt, int64_t worldSeed) {
+    salt = getLayerSeed(salt);
+    int64_t st = worldSeed;
+    st = mcStepSeed(st, salt);
+    st = mcStepSeed(st, salt);
+    st = mcStepSeed(st, salt);
+
+    layer->startSalt = st;
+    layer->startSeed = mcStepSeed(st, 0);
+}
+
+__kernel void setSeed(int64_t seed_start, __global struct Layer* layers) {
+    int offset = get_global_id(0) * L_NUM;
+    int seed = seed_start + get_global_id(0);
+    set_layer_seed(&layers[offset + L_ISLAND_4096], 1, seed);
+    set_layer_seed(&layers[offset + L_ZOOM_2048], 2000, seed);
+    set_layer_seed(&layers[offset + L_ADD_ISLAND_2048], 1, seed);
+    set_layer_seed(&layers[offset + L_ZOOM_1024], 2001, seed);
+    set_layer_seed(&layers[offset + L_ADD_ISLAND_1024A], 2, seed);
+    set_layer_seed(&layers[offset + L_ADD_ISLAND_1024B], 50, seed);
+    set_layer_seed(&layers[offset + L_ADD_ISLAND_1024C], 70, seed);
+    set_layer_seed(&layers[offset + L_REMOVE_OCEAN_1024], 2, seed);
+    set_layer_seed(&layers[offset + L_ADD_SNOW_1024], 2, seed);
+    set_layer_seed(&layers[offset + L_ADD_ISLAND_1024D], 3, seed);
+    set_layer_seed(&layers[offset + L_COOL_WARM_1024], 2, seed);
+    set_layer_seed(&layers[offset + L_HEAT_ICE_1024], 2, seed);
+    set_layer_seed(&layers[offset + L_SPECIAL_1024], 3, seed);
+    set_layer_seed(&layers[offset + L_ZOOM_512], 2002, seed);
+    set_layer_seed(&layers[offset + L_ZOOM_256], 2003, seed);
+    set_layer_seed(&layers[offset + L_ADD_ISLAND_256], 4, seed);
+    set_layer_seed(&layers[offset + L_ADD_MUSHROOM_256], 5, seed);
+    set_layer_seed(&layers[offset + L_DEEP_OCEAN_256], 4, seed);
+    set_layer_seed(&layers[offset + L_BIOME_256], 200, seed);
+    set_layer_seed(&layers[offset + L14_BAMBOO_256], 1001, seed);
+    set_layer_seed(&layers[offset + L_ZOOM_128], 1000, seed);
+    set_layer_seed(&layers[offset + L_ZOOM_64], 1001, seed);
+    set_layer_seed(&layers[offset + L_BIOME_EDGE_64], 1000, seed);
+    set_layer_seed(&layers[offset + L_RIVER_INIT_256], 100, seed);
+    set_layer_seed(&layers[offset + L_ZOOM_128_HILLS], 1000, seed);
+    set_layer_seed(&layers[offset + L_ZOOM_64_HILLS], 1001, seed);
+    set_layer_seed(&layers[offset + L_HILLS_64], 1000, seed);
+    set_layer_seed(&layers[offset + L_RARE_BIOME_64], 1001, seed);
+    set_layer_seed(&layers[offset + L_ZOOM_32], 1000, seed);
+    set_layer_seed(&layers[offset + L_ADD_ISLAND_32], 3, seed);
+    set_layer_seed(&layers[offset + L_ZOOM_16], 1001, seed);
+    set_layer_seed(&layers[offset + L_SHORE_16], 1000, seed);
+}
+
 __kernel void mapIsland(__constant struct Layer* layer, int layer_id, int4 dims, __constant int* in, __global int* out) {
+    int seed_offset = layer_id + (int)get_global_id(2) * L_NUM;
+
     int i = (int)get_global_id(0);
     int j = (int)get_global_id(1);
     int x = dims.s0;
     int z = dims.s1;
     int w = dims.s2;
     int h = dims.s3;
-    int64_t ss = layer[layer_id].startSeed;
+    int64_t ss = layer[seed_offset].startSeed;
+    // Frame in seed range
+    in = in + w * h * get_global_id(2);
+    out = out + w * h * get_global_id(2);
 
     int64_t cs = getChunkSeed(ss, x + i, z + j);
     out[i + j*w] = mcFirstIsZero(cs, 10);
@@ -238,19 +364,24 @@ __kernel void mapIsland(__constant struct Layer* layer, int layer_id, int4 dims,
 }
 
 __kernel void mapZoomIsland(__constant struct Layer* layer, int layer_id, int4 dims, __constant int* in, __global int* out) {
+    int seed_offset = layer_id + (int)get_global_id(2) * L_NUM;
     int i = (int)get_global_id(0);
     int j = (int)get_global_id(1);
     int x = dims.s0;
     int z = dims.s1;
     int w = dims.s2;
     int h = dims.s3;
-    int st = (int)layer[layer_id].startSalt;
-    int ss = (int)layer[layer_id].startSeed;
+    int st = (int)layer[seed_offset].startSalt;
+    int ss = (int)layer[seed_offset].startSeed;
 
     int pX = x >> 1;
     int pZ = z >> 1;
     int pW = ((x + w) >> 1) - pX + 1;
     int pH = ((z + h) >> 1) - pZ + 1;
+
+    // Frame in seed range
+    in = in + pW * pH * get_global_id(2);
+    out = out + w * h * get_global_id(2);
 
     int newW = pW << 1;
     int newH = pH << 1;
@@ -304,17 +435,25 @@ __kernel void mapZoomIsland(__constant struct Layer* layer, int layer_id, int4 d
 }
 
 __kernel void mapAddIsland(__constant struct Layer* layer, int layer_id, int4 dims, __constant int* in, __global int* out) {
+    int seed_offset = layer_id + (int)get_global_id(2) * L_NUM;
+
+    int x = dims.s0;
+    int z = dims.s1;
+    int w = dims.s2;
+    int h = dims.s3;
+
     int pX = dims.s0 - 1;
     int pZ = dims.s1 - 1;
     int pW = dims.s2 + 2;
     int pH = dims.s3 + 2;
 
-    int64_t st = layer[layer_id].startSalt;
-    int64_t ss = layer[layer_id].startSeed;
+    int64_t st = layer[seed_offset].startSalt;
+    int64_t ss = layer[seed_offset].startSeed;
 
-    int x = dims.s0;
-    int z = dims.s1;
-    int w = dims.s2;
+    // Frame in seed range
+    in = in + pW * pH * get_global_id(2);
+    out = out + w * h * get_global_id(2);
+
 
     int i = (int)get_global_id(0);
     int j = (int)get_global_id(1);
@@ -380,7 +519,13 @@ __kernel void mapAddIsland(__constant struct Layer* layer, int layer_id, int4 di
 
 __kernel void removeBrim(int4 dims, __constant int* in, __global int* out) {
     int w = dims.s2;
-    int pW = dims.s2 + 2;
+    int h = dims.s3;
+    int pW = w + 2;
+    int pH = h + 2;
+
+    // Frame in seed range
+    in = in + pW * pH * get_global_id(2);
+    out = out + w * h * get_global_id(2);
 
     int i = (int)get_global_id(0);
     int j = (int)get_global_id(1);
@@ -388,19 +533,24 @@ __kernel void removeBrim(int4 dims, __constant int* in, __global int* out) {
 }
 
 __kernel void mapZoom(__constant struct Layer* layer, int layer_id, int4 dims, __constant int* in, __global int* out) {
+    int seed_offset = layer_id + (int)get_global_id(2) * L_NUM;
     int i = (int)get_global_id(0);
     int j = (int)get_global_id(1);
     int x = dims.s0;
     int z = dims.s1;
     int w = dims.s2;
     int h = dims.s3;
-    int st = (int)layer[layer_id].startSalt;
-    int ss = (int)layer[layer_id].startSeed;
+    int st = (int)layer[seed_offset].startSalt;
+    int ss = (int)layer[seed_offset].startSeed;
 
     int pX = x >> 1;
     int pZ = z >> 1;
     int pW = ((x + w) >> 1) - pX + 1;
     int pH = ((z + h) >> 1) - pZ + 1;
+
+    // Frame in seed range
+    in = in + pW * pH * get_global_id(2);
+    out = out + w * h * get_global_id(2);
 
     int newW = pW << 1;
     int newH = pH << 1;
@@ -465,6 +615,7 @@ __kernel void mapZoom(__constant struct Layer* layer, int layer_id, int4 dims, _
 }
 
 __kernel void mapRemoveTooMuchOcean(__constant struct Layer* layers, int layer_id, int4 dims, __constant int* in, __global int* out) {
+    int seed_offset = layer_id + (int)get_global_id(2) * L_NUM;
     int x = dims.s0;
     int z = dims.s1;
     int w = dims.s2;
@@ -473,7 +624,11 @@ __kernel void mapRemoveTooMuchOcean(__constant struct Layer* layers, int layer_i
     int pX = x - 1;
     int pZ = z - 1;
     int pW = w + 2;
-    int pH = h + 1;
+    int pH = h + 2;
+
+    // Frame in seed range
+    in = in + pW * pH * get_global_id(2);
+    out = out + w * h * get_global_id(2);
 
     int i = get_global_id(0);
     int j = get_global_id(1);
@@ -486,7 +641,7 @@ __kernel void mapRemoveTooMuchOcean(__constant struct Layer* layers, int layer_i
 
     int v = v11;
     if (v10 == 0 && v01 == 0 && v11 == 0 && v21 == 0 && v12 == 0) {
-        int64_t ss = layers[layer_id].startSeed;
+        int64_t ss = layers[seed_offset].startSeed;
         int64_t cs = getChunkSeed(ss, i+x, j+z);
         if (mcFirstIsZero(cs, 2)) {
             v = 1;
@@ -496,6 +651,7 @@ __kernel void mapRemoveTooMuchOcean(__constant struct Layer* layers, int layer_i
 }
 
 __kernel void mapAddSnow(__constant struct Layer* layers, int layer_id, int4 dims, __constant int* in, __global int* out) {
+    int seed_offset = layer_id + (int)get_global_id(2) * L_NUM;
     int x = dims.s0;
     int z = dims.s1;
     int w = dims.s2;
@@ -506,12 +662,16 @@ __kernel void mapAddSnow(__constant struct Layer* layers, int layer_id, int4 dim
     int pW = w + 2;
     int pH = h + 2;
 
+    // Frame in seed range
+    in = in + pW * pH * get_global_id(2);
+    out = out + w * h * get_global_id(2);
+
     int i = get_global_id(0);
     int j = get_global_id(1);
 
     int v11 = in[i+1 + (j+1)*pW];
     
-    int64_t ss = layers[layer_id].startSeed;
+    int64_t ss = layers[seed_offset].startSeed;
     int64_t cs;
 
     if (isShallowOcean(v11)) {
@@ -539,6 +699,10 @@ __kernel void mapCoolWarm(__constant struct Layer* layers, int layer_id, int4 di
     int pZ = z - 1;
     int pW = w + 2;
     int pH = h + 2;
+
+    // Frame in seed range
+    in = in + pW * pH * get_global_id(2);
+    out = out + w * h * get_global_id(2);
 
     int i = get_global_id(0);
     int j = get_global_id(1);
@@ -572,6 +736,10 @@ __kernel void mapHeatIce(__constant struct Layer* layer, int layer_id, int4 dims
     int pW = w + 2;
     int pH = h + 2;
 
+    // Frame in seed range
+    in = in + pW * pH * get_global_id(2);
+    out = out + w * h * get_global_id(2);
+
     int i = get_global_id(0);
     int j = get_global_id(1);
 
@@ -593,16 +761,21 @@ __kernel void mapHeatIce(__constant struct Layer* layer, int layer_id, int4 dims
 }
 
 __kernel void mapSpecial(__constant struct Layer* layers, int layer_id, int4 dims, __constant int* in, __global int* out) {
+    int seed_offset = layer_id + (int)get_global_id(2) * L_NUM;
     int x = dims.s0;
     int z = dims.s1;
     int w = dims.s2;
     int h = dims.s3;
 
+    // Frame in seed range
+    in = in + w * h * get_global_id(2);
+    out = out + w * h * get_global_id(2);
+
     int i = get_global_id(0);
     int j = get_global_id(1);
     
-    int64_t st = layers[layer_id].startSalt;
-    int64_t ss = layers[layer_id].startSeed;
+    int64_t st = layers[seed_offset].startSalt;
+    int64_t ss = layers[seed_offset].startSeed;
 
     int v = in[i + j*w];
     if (v != 0) {
@@ -617,6 +790,7 @@ __kernel void mapSpecial(__constant struct Layer* layers, int layer_id, int4 dim
 }
 
 __kernel void mapAddMushroomIsland(__constant struct Layer * layers, int layer_id, int4 dims, __constant int* in, __global int* out) {
+    int seed_offset = layer_id + (int)get_global_id(2) * L_NUM;
     int x = dims.s0;
     int z = dims.s1;
     int w = dims.s2;
@@ -627,10 +801,14 @@ __kernel void mapAddMushroomIsland(__constant struct Layer * layers, int layer_i
     int pW = w + 2;
     int pH = h + 2;
 
+    // Frame in seed range
+    in = in + pW * pH * get_global_id(2);
+    out = out + w * h * get_global_id(2);
+
     int i = get_global_id(0);
     int j = get_global_id(1);
 
-    int64_t ss = layers[layer_id].startSeed;
+    int64_t ss = layers[seed_offset].startSeed;
     int64_t cs;
 
     int v11 = in[i+1 + (j+1)*pW];
@@ -657,6 +835,10 @@ __kernel void mapDeepOcean(__constant struct Layer* layers, int layer_id, int4 d
     int pZ = z - 1;
     int pW = w + 2;
     int pH = h + 2;
+
+    // Frame in seed range
+    in = in + pW * pH * get_global_id(2);
+    out = out + w * h * get_global_id(2);
 
     int i = get_global_id(0);
     int j = get_global_id(1);
@@ -705,15 +887,20 @@ __constant int coldBiomes[] = {forest, mountains, taiga, plains};
 __constant int snowBiomes[] = {snowy_tundra, snowy_tundra, snowy_tundra, snowy_taiga};
 
 __kernel void mapBiomes(__constant struct Layer* layers, int layer_id, int4 dims, __constant struct Biome* biomes, __constant int* in, __global int* out) {
+    int seed_offset = layer_id + (int)get_global_id(2) * L_NUM;
     int x = dims.s0;
     int z = dims.s1;
     int w = dims.s2;
     int h = dims.s3;
 
+    // Frame in seed range
+    in = in + w * h * get_global_id(2);
+    out = out + w * h * get_global_id(2);
+
     int i = get_global_id(0);
     int j = get_global_id(1);
 
-    int64_t ss = layers[layer_id].startSeed;
+    int64_t ss = layers[seed_offset].startSeed;
     int64_t cs;
 
     int idx = i + j*w;
@@ -749,15 +936,20 @@ __kernel void mapBiomes(__constant struct Layer* layers, int layer_id, int4 dims
 }
 
 __kernel void mapAddBamboo(__constant struct Layer* layers, int layer_id, int4 dims, __constant int* in, __global int* out) {
+    int seed_offset = layer_id + (int)get_global_id(2) * L_NUM;
     int x = dims.s0;
     int z = dims.s1;
     int w = dims.s2;
     int h = dims.s3;
 
+    // Frame in seed range
+    in = in + w * h * get_global_id(2);
+    out = out + w * h * get_global_id(2);
+
     int i = get_global_id(0);
     int j = get_global_id(1);
 
-    int64_t ss = layers[layer_id].startSeed;
+    int64_t ss = layers[seed_offset].startSeed;
     int64_t cs;
 
     int idx = i + j*w;
@@ -781,6 +973,10 @@ __kernel void mapBiomeEdge(__constant struct Layer* layers, int layer_id, int4 d
     int pZ = z - 1;
     int pW = w + 2;
     int pH = h + 2;
+
+    // Frame in seed range
+    in = in + pW * pH * get_global_id(2);
+    out = out + w * h * get_global_id(2);
 
     int i = get_global_id(0);
     int j = get_global_id(1);
@@ -832,15 +1028,20 @@ __kernel void mapBiomeEdge(__constant struct Layer* layers, int layer_id, int4 d
 }
 
 __kernel void mapRiverInit(__constant struct Layer* layers, int layer_id, int4 dims, __constant int* in, __global int* out) {
+    int seed_offset = layer_id + (int)get_global_id(2) * L_NUM;
     int x = dims.s0;
     int z = dims.s1;
     int w = dims.s2;
     int h = dims.s3;
 
+    // Frame in seed range
+    in = in + w * h * get_global_id(2);
+    out = out + w * h * get_global_id(2);
+
     int i = get_global_id(0);
     int j = get_global_id(1);
 
-    int64_t ss = layers[layer_id].startSeed;
+    int64_t ss = layers[seed_offset].startSeed;
     int64_t cs;
 
     if (in[i + j*w] > 0) {
@@ -852,6 +1053,7 @@ __kernel void mapRiverInit(__constant struct Layer* layers, int layer_id, int4 d
 }
 
 __kernel void mapHills13(__constant struct Layer* layers, int layer_id, int4 dims, __constant struct Biome* biomes, __constant int* in1, __constant int* in2, __global int* out) {
+    int seed_offset = layer_id + (int)get_global_id(2) * L_NUM;
     int x = dims.s0;
     int z = dims.s1;
     int w = dims.s2;
@@ -862,11 +1064,16 @@ __kernel void mapHills13(__constant struct Layer* layers, int layer_id, int4 dim
     int pW = w + 2;
     int pH = h + 2;
 
+    // Frame in seed range
+    in2 = in2 + pW * pH * get_global_id(2);
+    in1 = in1 + pW * pH * get_global_id(2);
+    out = out + w * h * get_global_id(2);
+
     int i = get_global_id(0);
     int j = get_global_id(1);
 
-    int64_t st = layers[layer_id].startSalt;
-    int64_t ss = layers[layer_id].startSeed;
+    int64_t st = layers[seed_offset].startSalt;
+    int64_t ss = layers[seed_offset].startSeed;
     int64_t cs;
 
     int a11 = in1[i+1 + (j+1)*pW]; // biome branch
@@ -975,15 +1182,20 @@ __kernel void mapHills13(__constant struct Layer* layers, int layer_id, int4 dim
 }
 
 __kernel void mapRareBiome(__constant struct Layer* layers, int layer_id, int4 dims, __constant int* in, __global int* out) {
+    int seed_offset = layer_id + (int)get_global_id(2) * L_NUM;
     int x = dims.s0;
     int z = dims.s1;
     int w = dims.s2;
     int h = dims.s3;
 
+    // Frame in seed range
+    in = in + w * h * get_global_id(2);
+    out = out + w * h * get_global_id(2);
+
     int i = get_global_id(0);
     int j = get_global_id(1);
 
-    int64_t ss = layers[layer_id].startSeed;
+    int64_t ss = layers[seed_offset].startSeed;
     int64_t cs;
 
     int v = in[i + j * w];
@@ -1035,6 +1247,10 @@ __kernel void mapShore(__constant struct Layer* layers, int layer_id, int4 dims,
     int pZ = z - 1;
     int pW = w + 2;
     int pH = h + 2;
+
+    // Frame in seed range
+    in = in + pW * pH * get_global_id(2);
+    out = out + w * h * get_global_id(2);
 
     int v11 = in[(j+1) * pW + i+1];
     int v10 = in[j * pW + i+1];

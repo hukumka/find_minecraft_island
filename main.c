@@ -5,6 +5,8 @@
 #include <string.h>
 #include "ocl_generator.h"
 
+#define SEED_RANGE 64
+
 struct Stack_Pos {
     Pos* stack;
     int head;
@@ -121,7 +123,7 @@ void save_to_file(const char* path, int64_t seed, struct ProcessingResult* resul
 
 int main(int argc, char *argv[]) {
     struct GeneratorContext context;
-    init_generator_context(&context, MC_1_16, 256, 256);
+    init_generator_context(&context, MC_1_16, SEED_RANGE, 256, 256);
 
     // this checks for two params which will be used as first and last seeds
     // and converts them into numbers
@@ -134,12 +136,6 @@ int main(int argc, char *argv[]) {
     const char* path = argv[3];
     printf("Seed range is from %ld to %ld\n", seed_start, seed_end);
     
-    // Initialize generator
-    initBiomes();
-    LayerStack g;
-    setupGenerator(&g, MC_1_16);
-    Layer *layer = &g.layers[L_SHORE_16];
-
     // Set search properties (Coordinates are in chunks (16x16 blocks))
     int width = 256;
     int height = 256;
@@ -150,26 +146,42 @@ int main(int argc, char *argv[]) {
 
     //int* buffer = allocCache(layer, width, height);
     //int* buffer2 = allocCache(layer, width, height);
-    cl_int* buffer = (cl_int*) malloc(width*height*sizeof(cl_int));
-    cl_int* buffer2 = (cl_int*) malloc(width*height*sizeof(cl_int));
+    cl_int* buffer = (cl_int*) malloc(SEED_RANGE*width*height*sizeof(cl_int));
+    cl_int* buffer2 = (cl_int*) malloc(SEED_RANGE*width*height*sizeof(cl_int));
+    cl_int* buffer3 = (cl_int*) malloc(SEED_RANGE*width*height*sizeof(cl_int));
 
     make_header(path);
+    cl_event e0;
+    cl_event e1;
+    set_world_seed(&context, seed_start, &e0);
+    generate_layer(&context, L_SHORE_16, dims, SEED_RANGE, buffer, &e0, &e1);
+    clWaitForEvents(1, &e1);
     // Run my shit
-    for (int64_t seed=seed_start; seed<=seed_end; ++seed) {
-        cl_event e0;
-        cl_event e1;
-        //setWorldSeed(layer, seed);
+    for (int64_t seed=seed_start+1; seed<=seed_end; seed += SEED_RANGE) {
         set_world_seed(&context, seed, &e0);
-        generate_layer(&context, L_SHORE_16, dims, buffer, &e0, &e1);
-        clWaitForEvents(1, &e1);
+        generate_layer(&context, L_SHORE_16, dims, SEED_RANGE, buffer3, &e0, &e1);
+        //setWorldSeed(layer, seed);
         //genArea(layer, buffer, centerX - width/2, centerZ - height/2, width, height);
 
-        struct Map map = {width, height, buffer, buffer2};
-        struct ProcessingResult result = process_island(&map);
-        if (!result.discard) {
-            save_to_file(path, seed, &result);
+        for (int i=0; i<SEED_RANGE; ++i) {
+            struct Map map = {width, height, buffer + i*width*height, buffer2};
+            struct ProcessingResult result = process_island(&map);
+            if (!result.discard) {
+                save_to_file(path, seed, &result);
+            }
         }
+
+        clWaitForEvents(1, &e1);
+        int* tmp = buffer;
+        buffer = buffer3;
+        buffer3 = tmp;
+    }
+    struct Map map = {width, height, buffer, buffer2};
+    struct ProcessingResult result = process_island(&map);
+    if (!result.discard) {
+        save_to_file(path, seed_end, &result);
     }
     free(buffer);
     free(buffer2);
+    free(buffer3);
 }

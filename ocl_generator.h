@@ -31,6 +31,8 @@ enum Kernels {
     KER_MAP_RARE_BIOMES,
     KER_SHORE,
 
+    SET_SEED,
+
     KERNEL_COUNT
 };
 
@@ -51,6 +53,7 @@ struct GeneratorContext {
     cl_mem buffers[BUFFER_COUNT];
     cl_mem* buffer_layout[BUFFER_COUNT];
     cl_program program;
+    size_t seed_range;
     int version;
 
     cl_kernel kernels[KERNEL_COUNT];
@@ -58,10 +61,10 @@ struct GeneratorContext {
     struct CLLayerStack stack;
 };
 
-cl_int init_generator_context(struct GeneratorContext* context, int version, size_t width, size_t height);
+cl_int init_generator_context(struct GeneratorContext* context, int version, size_t width, size_t height, size_t seed_range);
 cl_int set_world_seed(struct GeneratorContext* context, int64_t seed, cl_event* event);
 /// Before buffer `target` can be used, user must wait for queue to finish, by 
 /// clWaitForEvent for event.
-cl_int generate_layer(struct GeneratorContext* context, int layer, cl_int4 dims, cl_int* target, const cl_event* prev, cl_event* event);
+cl_int generate_layer(struct GeneratorContext* context, int layer, cl_int4 dims, size_t seed_range, cl_int* target, const cl_event* prev, cl_event* event);
 
 void release_generator_context(struct GeneratorContext* context);
