@@ -2,7 +2,7 @@
 #include <stdio.h>
 
 static int LAYER_BUFFER[L_NUM] = {0};
-typedef cl_int (*kernel_runner)(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event);
+typedef cl_int (*kernel_runner)(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event);
 typedef cl_int4 (*size_alteration)(cl_int4 dims);
 
 // Kernel runners are responcible to assigning buffers to layers.
@@ -67,24 +67,26 @@ static inline cl_int run_layer_kernel_with_dims(int kernel_id, size_t* sdims, cl
 
     return clEnqueueNDRangeKernel(
         context->queue, kernel,
-        2, NULL, sdims, NULL, 
+        3, NULL, sdims, NULL, 
         1, prev, event
     );
 }
 
-static inline cl_int run_layer_kernel(int kernel_id, cl_mem* in, cl_mem* out, struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
-    size_t sdims[2];
+static inline cl_int run_layer_kernel(int kernel_id, cl_mem* in, cl_mem* out, struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
+    size_t sdims[3];
     cl_int4 parent_dims = LAYER_WORK_DIMENTIONS[layer](dims);
     sdims[0] = parent_dims.s2;
     sdims[1] = parent_dims.s3;
+    sdims[2] = seed_range;
     return run_layer_kernel_with_dims(kernel_id, sdims, in, out, context, layer, dims, prev, event);
 }
 
-static inline cl_int run_biome_layer_kernel(int kernel_id, cl_mem* in, cl_mem* out, struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
-    size_t sdims[2];
+static inline cl_int run_biome_layer_kernel(int kernel_id, cl_mem* in, cl_mem* out, struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
+    size_t sdims[3];
     cl_int4 parent_dims = LAYER_WORK_DIMENTIONS[layer](dims);
     sdims[0] = parent_dims.s2;
     sdims[1] = parent_dims.s3;
+    sdims[2] = seed_range;
     cl_kernel kernel = context->kernels[kernel_id];
     cl_int err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &context->layersBuffer);
     if (err < 0) return err;
@@ -101,7 +103,7 @@ static inline cl_int run_biome_layer_kernel(int kernel_id, cl_mem* in, cl_mem* o
 
     return clEnqueueNDRangeKernel(
         context->queue, kernel,
-        2, NULL, sdims, NULL, 
+        3, NULL, sdims, NULL, 
         1, prev, event
     );
 }
@@ -115,62 +117,63 @@ static inline void swap_buffers(cl_mem** a, cl_mem** b) {
 // =============================================
 // KERNEL RUNNERS
 //
-cl_int island_4096_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int island_4096_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_PRIMARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
-    cl_int error = run_layer_kernel(KER_MAP_ISLAND, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_layer_kernel(KER_MAP_ISLAND, *in, *out, context, layer, dims, seed_range, prev, event);
     swap_buffers(in, out);
     return error;
 }
 
-cl_int zoom_island_2048_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int zoom_island_2048_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_PRIMARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
-    cl_int error = run_layer_kernel(KER_MAP_ZOOM_ISLAND, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_layer_kernel(KER_MAP_ZOOM_ISLAND, *in, *out, context, layer, dims, seed_range, prev, event);
     swap_buffers(in, out);
     return error;
 }
 
-cl_int add_island_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int add_island_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_PRIMARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
-    cl_int error = run_layer_kernel(KER_MAP_ADD_ISLAND, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_layer_kernel(KER_MAP_ADD_ISLAND, *in, *out, context, layer, dims, seed_range, prev, event);
     swap_buffers(in, out);
     return error;
 }
 
-cl_int zoom_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int zoom_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_PRIMARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
-    cl_int error = run_layer_kernel(KER_MAP_ZOOM, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_layer_kernel(KER_MAP_ZOOM, *in, *out, context, layer, dims, seed_range, prev, event);
     swap_buffers(in, out);
     return error;
 }
 
 // Same as zoom_runner, but user secondary buffer
-cl_int zoom_snd_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int zoom_snd_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_SECONDARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
-    cl_int error = run_layer_kernel(KER_MAP_ZOOM, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_layer_kernel(KER_MAP_ZOOM, *in, *out, context, layer, dims, seed_range, prev, event);
     swap_buffers(in, out);
     return error;
 }
 
 // Zoom and remove brim. 
 // Brim is added to make sizes of L_DEEP_OCEAN_256 required by L_RIVER_INIT_256 and L_BIOME_256 same.
-cl_int zoom_64_hills_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int zoom_64_hills_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_SECONDARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
     cl_event e;
 
     cl_int4 d0 = zooming_brim_layer(dims);
-    size_t sdims[2] = {d0.s2, d0.s3};
+    size_t sdims[3] = {d0.s2, d0.s3, seed_range};
     cl_int err = run_layer_kernel_with_dims(KER_MAP_ZOOM, sdims, *in, *out, context, layer, add_brim_layer(dims), prev, &e);
     swap_buffers(in, out);
     if (err < 0) return err;
 
     sdims[0] = dims.s2;
     sdims[1] = dims.s3;
+    sdims[2] = seed_range;
 
     cl_kernel kernel = context->kernels[KER_RM_BRIM];
     err = clSetKernelArg(kernel, 0, sizeof(cl_int4), &dims);
@@ -182,108 +185,109 @@ cl_int zoom_64_hills_runner(struct GeneratorContext* context, cl_int layer, cl_i
 
     err = clEnqueueNDRangeKernel(
         context->queue, kernel,
-        2, NULL, sdims, NULL, 
+        3, NULL, sdims, NULL, 
         1, prev, event
     );
     swap_buffers(in, out);
     return err;
 }
 
-cl_int remove_ocean_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int remove_ocean_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_PRIMARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
-    cl_int error = run_layer_kernel(KER_REMOVE_OCEAN, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_layer_kernel(KER_REMOVE_OCEAN, *in, *out, context, layer, dims, seed_range, prev, event);
     swap_buffers(in, out);
     return error;
 }
 
-cl_int add_snow_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int add_snow_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_PRIMARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
-    cl_int error = run_layer_kernel(KER_ADD_SNOW, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_layer_kernel(KER_ADD_SNOW, *in, *out, context, layer, dims, seed_range, prev, event);
     swap_buffers(in, out);
     return error;
 }
 
-cl_int cool_warm_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int cool_warm_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_PRIMARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
-    cl_int error = run_layer_kernel(KER_COOL_WARM, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_layer_kernel(KER_COOL_WARM, *in, *out, context, layer, dims, seed_range, prev, event);
     swap_buffers(in, out);
     return error;
 }
 
-cl_int heat_ice_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int heat_ice_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_PRIMARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
-    cl_int error = run_layer_kernel(KER_HEAT_ICE, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_layer_kernel(KER_HEAT_ICE, *in, *out, context, layer, dims, seed_range, prev, event);
     swap_buffers(in, out);
     return error;
 }
 
-cl_int special_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int special_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_PRIMARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
-    cl_int error = run_layer_kernel(KER_SPECIAL, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_layer_kernel(KER_SPECIAL, *in, *out, context, layer, dims, seed_range, prev, event);
     swap_buffers(in, out);
     return error;
 }
 
-cl_int add_mashroom_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int add_mashroom_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_PRIMARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
-    cl_int error = run_layer_kernel(KER_ADD_MUSHROOM, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_layer_kernel(KER_ADD_MUSHROOM, *in, *out, context, layer, dims, seed_range,  prev, event);
     swap_buffers(in, out);
     return error;
 }
 
-cl_int deep_ocean_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int deep_ocean_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_PRIMARY];
     cl_mem** out = &context->buffer_layout[BUF_SECONDARY];
-    cl_int error = run_layer_kernel(KER_DEEP_OCEAN, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_layer_kernel(KER_DEEP_OCEAN, *in, *out, context, layer, dims, seed_range, prev, event);
     return error;
 }
 
-cl_int biomes_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int biomes_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_SECONDARY];
     cl_mem** out = &context->buffer_layout[BUF_PRIMARY];
-    cl_int error = run_biome_layer_kernel(KER_BIOMES, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_biome_layer_kernel(KER_BIOMES, *in, *out, context, layer, dims, seed_range, prev, event);
     return error;
 }
 
-cl_int add_bamboo_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int add_bamboo_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_PRIMARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
-    cl_int error = run_layer_kernel(KER_ADD_BAMBOO, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_layer_kernel(KER_ADD_BAMBOO, *in, *out, context, layer, dims, seed_range, prev, event);
     swap_buffers(in, out);
     return error;
 }
 
-cl_int biome_edge_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int biome_edge_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_PRIMARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
-    cl_int error = run_biome_layer_kernel(KER_BIOME_EDGE, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_biome_layer_kernel(KER_BIOME_EDGE, *in, *out, context, layer, dims, seed_range, prev, event);
     swap_buffers(in, out);
     return error;
 }
 
-cl_int river_init_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int river_init_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_SECONDARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
-    cl_int error = run_layer_kernel(KER_RIVER_INIT, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_layer_kernel(KER_RIVER_INIT, *in, *out, context, layer, dims, seed_range, prev, event);
     swap_buffers(in, out);
     return error;
 }
 
-cl_int hills_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int hills_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in1 = &context->buffer_layout[BUF_PRIMARY];
     cl_mem** in2 = &context->buffer_layout[BUF_SECONDARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
 
-    size_t sdims[2];
+    size_t sdims[3];
     cl_int4 parent_dims = LAYER_WORK_DIMENTIONS[layer](dims);
     sdims[0] = parent_dims.s2;
     sdims[1] = parent_dims.s3;
+    sdims[2] = seed_range;
     cl_kernel kernel = context->kernels[KER_HILLS];
     cl_int err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &context->layersBuffer);
     if (err < 0) return err;
@@ -302,25 +306,25 @@ cl_int hills_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims
 
     err = clEnqueueNDRangeKernel(
         context->queue, kernel,
-        2, NULL, sdims, NULL, 
+        3, NULL, sdims, NULL, 
         1, prev, event
     );
     swap_buffers(in1, out);
     return err;
 }
 
-cl_int rare_biome_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int rare_biome_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_PRIMARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
-    cl_int error = run_layer_kernel(KER_MAP_RARE_BIOMES, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_layer_kernel(KER_MAP_RARE_BIOMES, *in, *out, context, layer, dims, seed_range, prev, event);
     swap_buffers(in, out);
     return error;
 }
 
-cl_int shore_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, const cl_event* prev, cl_event* event) {
+cl_int shore_runner(struct GeneratorContext* context, cl_int layer, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_mem** in = &context->buffer_layout[BUF_PRIMARY];
     cl_mem** out = &context->buffer_layout[BUF_TMP];
-    cl_int error = run_biome_layer_kernel(KER_SHORE, *in, *out, context, layer, dims, prev, event);
+    cl_int error = run_biome_layer_kernel(KER_SHORE, *in, *out, context, layer, dims, seed_range, prev, event);
     swap_buffers(in, out);
     return error;
 }
@@ -374,9 +378,9 @@ void init_layer_decendants() {
 }
 
 static const cl_int ZERO = 0;
-static inline cl_int fill_primary_buffer(struct GeneratorContext* context, cl_int4 dims, const cl_event* prev, cl_event* event) {
+static inline cl_int fill_primary_buffer(struct GeneratorContext* context, cl_int4 dims, size_t seed_range, const cl_event* prev, cl_event* event) {
     cl_int event_count = prev ? 1 : 0;
-    return clEnqueueFillBuffer(context->queue, context->buffers[0], &ZERO, sizeof(cl_int), 0, dims.s2*dims.s3*sizeof(cl_int), event_count, prev, event);
+    return clEnqueueFillBuffer(context->queue, context->buffers[0], &ZERO, sizeof(cl_int), 0, seed_range*dims.s2*dims.s3*sizeof(cl_int), event_count, prev, event);
 }
 
 int create_build_plan(struct GeneratorContext* context, int layer, int* plan, cl_int4* sizes, cl_int4 dims);
@@ -442,7 +446,7 @@ int create_build_plan(struct GeneratorContext* context, int layer, int* plan, cl
     }
 }
 
-cl_int generate_layer(struct GeneratorContext* context, int layer, cl_int4 dims, cl_int* target, const cl_event* prev, cl_event* event) {
+cl_int generate_layer(struct GeneratorContext* context, int layer, cl_int4 dims, size_t seed_range, cl_int* target, const cl_event* prev, cl_event* event) {
     int build_plan[L_NUM];
     cl_int4 sz[L_NUM];
     cl_event events[L_NUM + 1];
@@ -454,26 +458,25 @@ cl_int generate_layer(struct GeneratorContext* context, int layer, cl_int4 dims,
     int* layers = build_plan + L_NUM - plan_len;
     cl_int4* sizes = sz + L_NUM - plan_len;
 
-    //show_build_plan(layers, sizes, plan_len);
-
-    err = fill_primary_buffer(context, dims, prev, &events[0]);
+    err = fill_primary_buffer(context, dims, seed_range, prev, &events[0]);
     if (err < 0) return err;
 
     for (int i = 0; i < plan_len; ++i) {
         int curr_layer = layers[i];
-        err = KERNEL_RUNNERS[curr_layer](context, (cl_int)curr_layer, sizes[i], &events[i], &events[i + 1]);
+        err = KERNEL_RUNNERS[curr_layer](context, (cl_int)curr_layer, sizes[i], seed_range, &events[i], &events[i + 1]);
         if (err < 0) return err;
     }
     cl_mem* buffer = context->buffer_layout[LAYER_BUFFER[layer]];
     return clEnqueueReadBuffer(
         context->queue, *buffer, CL_FALSE,
-        0, sizeof(cl_int) * dims.s2 * dims.s3, target, 
+        0, sizeof(cl_int) * dims.s2 * dims.s3 * seed_range, target, 
         1, &events[plan_len], event
     );
 }
 
-cl_int init_generator_context(struct GeneratorContext* context, int version, size_t width, size_t height) {
+cl_int init_generator_context(struct GeneratorContext* context, int version, size_t width, size_t height, size_t seed_range) {
     init_layer_decendants();
+    context->seed_range = seed_range;
     cl_int err;
     cl_platform_id platform;
     int new_width = width + 2 * L_NUM; // Most commonly, parent layers add 1 cell brim around child area.
@@ -495,7 +498,7 @@ cl_int init_generator_context(struct GeneratorContext* context, int version, siz
         return err;
     }
     // This buffer holds info about layer seeds. Context will be initialized by `set_layer_seed` call.
-    context->layersBuffer = clCreateBuffer(context->context, CL_MEM_READ_ONLY, sizeof(struct CLLayerStack), NULL, &err);
+    context->layersBuffer = clCreateBuffer(context->context, CL_MEM_READ_ONLY, sizeof(struct CLLayer) * L_NUM * seed_range, NULL, &err);
     if (err < 0) {
         clReleaseContext(context->context);
         return err;
@@ -510,7 +513,7 @@ cl_int init_generator_context(struct GeneratorContext* context, int version, siz
     clEnqueueWriteBuffer(context->queue, context->biomesBuffer, CL_TRUE, 0, sizeof(Biome) * 256, biomes, 0, NULL, NULL);
     // Init buffers for layer data.
     for (int i = 0; i < BUFFER_COUNT; ++i) {
-        context->buffers[i] = clCreateBuffer(context->context, CL_MEM_READ_WRITE, new_width * new_height * sizeof(cl_int), NULL, &err);
+        context->buffers[i] = clCreateBuffer(context->context, CL_MEM_READ_WRITE, seed_range * new_width * new_height * sizeof(cl_int), NULL, &err);
         if (err < 0) {
             clReleaseContext(context->context);
             return err;
@@ -578,7 +581,9 @@ cl_int init_generator_context(struct GeneratorContext* context, int version, siz
         "mapHills13",
         "removeBrim",
         "mapRareBiome",
-        "mapShore"
+        "mapShore",
+
+        "setSeed"
     };
     for (int i=0; i<KERNEL_COUNT; ++i) {
         context->kernels[i] = clCreateKernel(context->program, kernel_names[i], &err);
@@ -595,54 +600,16 @@ void release_generator_context(struct GeneratorContext* context) {
     clReleaseContext(context->context);
 }
 
-void set_layer_seed(struct CLLayer* layer, int64_t salt, int64_t worldSeed) {
-    salt = getLayerSeed(salt);
-    int64_t st = worldSeed;
-    st = mcStepSeed(st, salt);
-    st = mcStepSeed(st, salt);
-    st = mcStepSeed(st, salt);
-
-    layer->startSalt = st;
-    layer->startSeed = mcStepSeed(st, 0);
-}
-
+/// Initialize world seeds in range of (seed..seed+seed_range)
 cl_int set_world_seed(struct GeneratorContext* context, int64_t seed, cl_event* event) {
-    set_layer_seed(&context->stack.layers[L_ISLAND_4096], 1, seed);
-    set_layer_seed(&context->stack.layers[L_ZOOM_2048], 2000, seed);
-    set_layer_seed(&context->stack.layers[L_ADD_ISLAND_2048], 1, seed);
-    set_layer_seed(&context->stack.layers[L_ZOOM_1024], 2001, seed);
-    set_layer_seed(&context->stack.layers[L_ADD_ISLAND_1024A], 2, seed);
-    set_layer_seed(&context->stack.layers[L_ADD_ISLAND_1024B], 50, seed);
-    set_layer_seed(&context->stack.layers[L_ADD_ISLAND_1024C], 70, seed);
-    set_layer_seed(&context->stack.layers[L_REMOVE_OCEAN_1024], 2, seed);
-    set_layer_seed(&context->stack.layers[L_ADD_SNOW_1024], 2, seed);
-    set_layer_seed(&context->stack.layers[L_ADD_ISLAND_1024D], 3, seed);
-    set_layer_seed(&context->stack.layers[L_COOL_WARM_1024], 2, seed);
-    set_layer_seed(&context->stack.layers[L_HEAT_ICE_1024], 2, seed);
-    set_layer_seed(&context->stack.layers[L_SPECIAL_1024], 3, seed);
-    set_layer_seed(&context->stack.layers[L_ZOOM_512], 2002, seed);
-    set_layer_seed(&context->stack.layers[L_ZOOM_256], 2003, seed);
-    set_layer_seed(&context->stack.layers[L_ADD_ISLAND_256], 4, seed);
-    set_layer_seed(&context->stack.layers[L_ADD_MUSHROOM_256], 5, seed);
-    set_layer_seed(&context->stack.layers[L_DEEP_OCEAN_256], 4, seed);
-    set_layer_seed(&context->stack.layers[L_BIOME_256], 200, seed);
-    set_layer_seed(&context->stack.layers[L14_BAMBOO_256], 1001, seed);
-    set_layer_seed(&context->stack.layers[L_ZOOM_128], 1000, seed);
-    set_layer_seed(&context->stack.layers[L_ZOOM_64], 1001, seed);
-    set_layer_seed(&context->stack.layers[L_BIOME_EDGE_64], 1000, seed);
-    set_layer_seed(&context->stack.layers[L_RIVER_INIT_256], 100, seed);
-    set_layer_seed(&context->stack.layers[L_ZOOM_128_HILLS], 1000, seed);
-    set_layer_seed(&context->stack.layers[L_ZOOM_64_HILLS], 1001, seed);
-    set_layer_seed(&context->stack.layers[L_HILLS_64], 1000, seed);
-    set_layer_seed(&context->stack.layers[L_RARE_BIOME_64], 1001, seed);
-    set_layer_seed(&context->stack.layers[L_ZOOM_32], 1000, seed);
-    set_layer_seed(&context->stack.layers[L_ADD_ISLAND_32], 3, seed);
-    set_layer_seed(&context->stack.layers[L_ZOOM_16], 1001, seed);
-    set_layer_seed(&context->stack.layers[L_SHORE_16], 1000, seed);
-
-    return clEnqueueWriteBuffer(
-        context->queue, context->layersBuffer, CL_FALSE, 
-        0, sizeof(struct CLLayerStack), context->stack.layers, 
+    cl_kernel kernel = context->kernels[SET_SEED];
+    cl_int err = clSetKernelArg(kernel, 0, sizeof(int64_t), &seed);
+    if (err < 0) return err;
+    err = clSetKernelArg(kernel, 1, sizeof(cl_mem), &context->layersBuffer);
+    if (err < 0) return err;
+    return clEnqueueNDRangeKernel(
+        context->queue, kernel, 1, 
+        NULL, &context->seed_range, NULL, 
         0, NULL, event
     );
 }
