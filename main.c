@@ -104,7 +104,7 @@ void make_header(const char* path) {
 }
 
 void save_to_file(const char* path, int64_t seed, struct ProcessingResult* result) {
-    printf("%ld", seed);
+    printf("%ld\n", seed);
     FILE* file = fopen(path, "a");
     // seed, width, height, x, X, z, Z, lenght, biome_value, area, shore_value, map_biome_value
     fprintf(file, "%ld, %d, %d, %d, %d, %d, %d, %d, %d, %d, %lf, %d\n",
@@ -156,8 +156,9 @@ int main(int argc, char *argv[]) {
     set_world_seed(&context, seed_start, &e0);
     generate_layer(&context, L_SHORE_16, dims, SEED_RANGE, buffer, &e0, &e1);
     clWaitForEvents(1, &e1);
+    int64_t seed;
     // Run my shit
-    for (int64_t seed=seed_start+1; seed<=seed_end; seed += SEED_RANGE) {
+    for (seed=seed_start+SEED_RANGE; seed<=seed_end; seed += SEED_RANGE) {
         set_world_seed(&context, seed, &e0);
         generate_layer(&context, L_SHORE_16, dims, SEED_RANGE, buffer3, &e0, &e1);
         //setWorldSeed(layer, seed);
@@ -167,7 +168,7 @@ int main(int argc, char *argv[]) {
             struct Map map = {width, height, buffer + i*width*height, buffer2};
             struct ProcessingResult result = process_island(&map);
             if (!result.discard) {
-                save_to_file(path, seed, &result);
+                save_to_file(path, seed - SEED_RANGE + i, &result);
             }
         }
 
@@ -176,10 +177,12 @@ int main(int argc, char *argv[]) {
         buffer = buffer3;
         buffer3 = tmp;
     }
-    struct Map map = {width, height, buffer, buffer2};
-    struct ProcessingResult result = process_island(&map);
-    if (!result.discard) {
-        save_to_file(path, seed_end, &result);
+    for (int i=0; i<SEED_RANGE; ++i) {
+        struct Map map = {width, height, buffer + i*width*height, buffer2};
+        struct ProcessingResult result = process_island(&map);
+        if (!result.discard) {
+            save_to_file(path, seed + i, &result);
+        }
     }
     free(buffer);
     free(buffer2);
